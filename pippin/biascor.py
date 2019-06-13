@@ -1,10 +1,11 @@
 import inspect
 import shutil
 import subprocess
+import os
 
 from pippin.base import ConfigBasedExecutable
 from pippin.config import chown_dir, mkdirs, get_config
-import os
+from pippin.task import Task
 
 
 class BiasCor(ConfigBasedExecutable):
@@ -28,13 +29,20 @@ class BiasCor(ConfigBasedExecutable):
         self.config_filename = f"{self.genversion}.input"  # Make sure this syncs with the tmp file name
         self.config_path = os.path.join(self.output_dir, self.config_filename)
         self.fit_output_dir = os.path.join(self.output_dir, "output")
-        self.done_file = os.path.join(self.output_dir, f"FITJOBS_{self.genversion}/ALL.DONE")
+        self.done_file = os.path.join(self.fit_output_dir, f"FITJOBS/ALL.DONE")
         self.probability_column_name = classifier.output["prob_column_name"]
 
         self.output["fit_output_dir"] = self.fit_output_dir
 
     def _check_completion(self, squeue):
-        pass
+        if os.path.exists(self.done_file):
+            self.logger.debug("Done file found, biascor task finishing")
+            with open(self.done_file) as f:
+                if "FAIL" in f.read():
+                    self.logger.error("Done file reporting failure!")
+                    return Task.FINISHED_FAILURE
+            return Task.FINISHED_SUCCESS
+        return 1
 
     def write_input(self, force_refresh):
         self.bias_cor_fits = ",".join([m.output["fitres_file"] for m in self.merged_iasim])
